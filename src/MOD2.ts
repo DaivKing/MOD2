@@ -1,5 +1,9 @@
+//IMPORTAÇÃO DE BIBLIOTECAS
+
 import promptSync from "prompt-sync";
 const prompt = promptSync();
+
+//CLASSE MOVIMENTAÇÃO
 
 class Movimentacao {
   constructor(protected data: Date, protected quantidade: number) {}
@@ -11,7 +15,17 @@ class Movimentacao {
   public setQuantidade(quantidade: number): void {
     this.quantidade = quantidade;
   }
+
+  public getData(): Date {
+    return this.data;
+  }
+
+  public getTipo(): string {
+    return "Movimentacao"; // será sobrescrito em Entrada/Saida
+  }
 }
+
+// CLASSE PRODUTO
 
 class Produto {
   constructor(
@@ -20,6 +34,8 @@ class Produto {
     public preco: number,
     private quantidade: number
   ) {}
+
+  //Metodos get/set
 
   getQuantidade(): number {
     return this.quantidade;
@@ -35,6 +51,7 @@ class Produto {
     }
   }
 
+  //Metodo que converte as info do produto em uma unica linha(string)
   toString(): string {
     return `Código: ${this.codigo} | Nome: ${
       this.nome
@@ -42,16 +59,18 @@ class Produto {
   }
 }
 
-class Entrada extends Movimentacao {
-  private produto: Produto;
+//CLASSE DE ENTRADA E SAIDA
 
-  constructor(data: Date, quantidade: number, produto: Produto) {
+class Entrada extends Movimentacao {
+  constructor(data: Date, quantidade: number, private produto: Produto) {
     super(data, quantidade);
-    this.produto = produto;
   }
 
   registrarEntrada(): void {
-    const novaQuantidade = this.produto.getQuantidade() + this.quantidade;
+    if (this.getQuantidade() <= 0) {
+      throw new Error("Quantidade de entrada deve ser maior que zero.");
+    }
+    const novaQuantidade = this.produto.getQuantidade() + this.getQuantidade();
     this.produto.setQuantidade(novaQuantidade);
     console.log(
       `Entrada registrada. Nova quantidade de ${
@@ -59,51 +78,47 @@ class Entrada extends Movimentacao {
       }: ${this.produto.getQuantidade()}`
     );
   }
+
+  public getTipo(): string {
+    return "Entrada";
+  }
 }
 
 class Saida extends Movimentacao {
-  private produto: Produto;
-
-  constructor(data: Date, quantidade: number, produto: Produto) {
+  constructor(data: Date, quantidade: number, private produto: Produto) {
     super(data, quantidade);
-    this.produto = produto;
   }
 
-  public registrarSaida(): void {
+  registrarSaida(): void {
     if (this.produto.getQuantidade() >= this.getQuantidade()) {
       const novaQuantidade =
         this.produto.getQuantidade() - this.getQuantidade();
       this.produto.setQuantidade(novaQuantidade);
       console.log(
-        `Saida registrada. Nova quantidade de ${
+        `✅ Saída registrada. Nova quantidade de ${
           this.produto.nome
         }: ${this.produto.getQuantidade()}`
       );
+      this.produto.estoqueBaixo();
     } else {
       throw new Error(
-        "Quantidade insuficiente em estoque para realizar a saída."
+        `Quantidade insuficiente em estoque para ${
+          this.produto.nome
+        }. Estoque atual: ${this.produto.getQuantidade()}, solicitado: ${this.getQuantidade()}`
       );
     }
   }
+
+  public getTipo(): string {
+    return "Saida";
+  }
 }
+
+// CLASSE ESTOQUE
 
 class Estoque {
   private produtos: Produto[] = [];
-  private historico: Movimentacao[] = [];
-
-  public registrarMovimentacao(mov: Movimentacao): void {
-    this.historico.push(mov);
-  }
-  public listarHistorico(): void {
-    if (this.historico.length === 0) {
-      console.log("📜 Nenhuma movimentação registrada.");
-      return;
-    }
-    console.log("\n=== HISTÓRICO DE MOVIMENTAÇÕES ===");
-    this.historico.forEach((m, i) => {
-      console.log(`${i + 1} - Data: ${m['data'].toLocaleString()} | Quantidade: ${m.getQuantidade()}`);
-    });
-  }
+  public historico: Movimentacao[] = [];
 
   public addProduto(produto: Produto): void {
     this.produtos.push(produto);
@@ -125,7 +140,29 @@ class Estoque {
       p.estoqueBaixo();
     });
   }
+
+  public registrarMovimentacao(mov: Movimentacao): void {
+    this.historico.push(mov);
+  }
+
+  //Lista o historico completo
+  public listarHistorico(): void {
+    if (this.historico.length === 0) {
+      console.log("Nenhuma movimentação registrada.");
+      return;
+    } else {
+      console.log("\n=== HISTÓRICO DE MOVIMENTAÇÕES ===");
+      this.historico.forEach((m, i) => {
+        console.log(
+          `${i + 1} - Data: ${m[
+            "data"
+          ].toLocaleString()} | Quantidade: ${m.getQuantidade()}`
+        );
+      });
+    }
+  }
 }
+//Menu Interativo
 
 const estoque = new Estoque();
 let opcao = "";
@@ -135,7 +172,7 @@ do {
   console.log("1 - Adicionar Produto");
   console.log("2 - Registrar Entrada");
   console.log("3 - Registrar Saída");
-  console.log("4 - Listar Produtos");
+  console.log("4 - Gerar Relatório");
   console.log("0 - Sair");
 
   opcao = prompt("Escolha uma opção: ");
@@ -172,11 +209,13 @@ do {
       break;
 
     case "4":
-      estoque.listarProdutos();
+      console.log("\n=== RELATÓRIO COMPLETO DO ESTOQUE ===");
+      estoque.listarProdutos(); // Lista produtos e alerta estoque baixo
+      estoque.listarHistorico(); // Lista histórico de entradas/saídas
       break;
 
     case "0":
-      console.log("Saindo do sistema...");
+      console.log("Saindo do sistema");
       break;
 
     default:
