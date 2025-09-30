@@ -5,24 +5,20 @@ const prompt = promptSync();
 
 //CLASSE MOVIMENTAÇÃO
 
-class Movimentacao {
+abstract class Movimentacao {
+  protected sucesso: boolean = false;
+
   constructor(protected data: Date, protected quantidade: number) {}
 
   public getQuantidade(): number {
     return this.quantidade;
   }
 
-  public setQuantidade(quantidade: number): void {
-    this.quantidade = quantidade;
+  public verSucesso(): boolean {
+    return this.sucesso;
   }
 
-  public getData(): Date {
-    return this.data;
-  }
-
-  public getTipo(): string {
-    return "Movimentacao"; // será sobrescrito em Entrada/Saida
-  }
+  public abstract getTipo(): string;
 }
 
 // CLASSE PRODUTO
@@ -36,7 +32,6 @@ class Produto {
   ) {}
 
   //Metodos get/set
-
   getQuantidade(): number {
     return this.quantidade;
   }
@@ -45,6 +40,7 @@ class Produto {
     this.quantidade = quantidade;
   }
 
+  // Metodo que avisa quando o estoque esta baixo
   estoqueBaixo(): void {
     if (this.quantidade < 3) {
       console.log(`Estoque baixo para o produto: ${this.nome}`);
@@ -68,10 +64,12 @@ class Entrada extends Movimentacao {
 
   registrarEntrada(): void {
     if (this.getQuantidade() <= 0) {
+      this.sucesso = false;
       throw new Error("Quantidade de entrada deve ser maior que zero.");
     }
     const novaQuantidade = this.produto.getQuantidade() + this.getQuantidade();
     this.produto.setQuantidade(novaQuantidade);
+    this.sucesso = true;
     console.log(
       `Entrada registrada. Nova quantidade de ${
         this.produto.nome
@@ -94,13 +92,15 @@ class Saida extends Movimentacao {
       const novaQuantidade =
         this.produto.getQuantidade() - this.getQuantidade();
       this.produto.setQuantidade(novaQuantidade);
+      this.sucesso = true;
       console.log(
-        `✅ Saída registrada. Nova quantidade de ${
+        `Saída registrada. Nova quantidade de ${
           this.produto.nome
         }: ${this.produto.getQuantidade()}`
       );
       this.produto.estoqueBaixo();
     } else {
+      this.sucesso = false;
       throw new Error(
         `Quantidade insuficiente em estoque para ${
           this.produto.nome
@@ -110,7 +110,7 @@ class Saida extends Movimentacao {
   }
 
   public getTipo(): string {
-    return "Saida";
+    return "Saída";
   }
 }
 
@@ -121,8 +121,18 @@ class Estoque {
   public historico: Movimentacao[] = [];
 
   public addProduto(produto: Produto): void {
+    if (produto.getQuantidade() < 0) {
+      throw new Error("Quantidade inicial não pode ser negativa.");
+    }
+    if (produto.preco < 0) {
+      throw new Error("Preço do produto não pode ser negativo.");
+    }
     this.produtos.push(produto);
     console.log(`Produto "${produto.nome}" adicionado ao estoque.`);
+  }
+
+  public registrarMovimentacao(mov: Movimentacao): void {
+    this.historico.push(mov);
   }
 
   public buscarProduto(codigo: string): Produto | undefined {
@@ -130,42 +140,38 @@ class Estoque {
   }
 
   public listarProdutos(): void {
+    console.log("\n=== LISTA DE PRODUTOS ===");
     if (this.produtos.length === 0) {
       console.log("Nenhum produto no estoque.");
       return;
     }
-    console.log("\n=== LISTA DE PRODUTOS ===");
     this.produtos.forEach((p) => {
       console.log(p.toString());
       p.estoqueBaixo();
     });
   }
 
-  public registrarMovimentacao(mov: Movimentacao): void {
-    this.historico.push(mov);
-  }
-
   //Lista o historico completo
   public listarHistorico(): void {
+    console.log("\n🕒 Histórico de Movimentações:");
     if (this.historico.length === 0) {
       console.log("Nenhuma movimentação registrada.");
       return;
-    } else {
-      console.log("\n=== HISTÓRICO DE MOVIMENTAÇÕES ===");
-      this.historico.forEach((m, i) => {
-        console.log(
-          `${i + 1} - Data: ${m[
-            "data"
-          ].toLocaleString()} | Quantidade: ${m.getQuantidade()}`
-        );
-      });
     }
+    this.historico.forEach((m) => {
+      console.log(
+        `${m.getTipo()} - Quantidade: ${m.getQuantidade()} - Data: ${m["data"].toLocaleString()} - ${
+          m.verSucesso() ? "Sucesso" : "Falhou"
+        }`
+      );
+    });
   }
 }
+
 //Menu Interativo
 
 const estoque = new Estoque();
-let opcao = "";
+let opcao: string;
 
 do {
   console.log("\n=== MENU ESTOQUE ===");
@@ -177,49 +183,61 @@ do {
 
   opcao = prompt("Escolha uma opção: ");
 
-  switch (opcao) {
-    case "1":
-      const nome = prompt("Nome do produto: ");
-      const codigo = prompt("Código do produto: ");
-      const preco = parseFloat(prompt("Preço do produto: "));
-      const quantidade = parseInt(prompt("Quantidade inicial: "));
-      estoque.addProduto(new Produto(nome, codigo, preco, quantidade));
-      break;
+  try {
+    switch (opcao) {
+      case "1":
+        const nome = prompt("Nome do produto: ");
+        const codigo = prompt("Código do produto: ");
+        const preco = parseFloat(prompt("Preço do produto: "));
+        const quantidade = parseInt(prompt("Quantidade inicial: "));
+        estoque.addProduto(new Produto(nome, codigo, preco, quantidade));
+        break;
 
-    case "2":
-      const codigoEntrada = prompt("Código do produto: ");
-      const produtoEntrada = estoque.buscarProduto(codigoEntrada);
-      if (produtoEntrada) {
+      case "2":
+        const codigoEntrada = prompt("Código do produto: ");
+        const produtoEntrada = estoque.buscarProduto(codigoEntrada);
+        if (!produtoEntrada) throw new Error("Produto não encontrado.");
         const qtdEntrada = parseInt(prompt("Quantidade a adicionar: "));
-        new Entrada(new Date(), qtdEntrada, produtoEntrada).registrarEntrada();
-      } else {
-        console.log("Produto não encontrado.");
-      }
-      break;
+        const entrada = new Entrada(new Date(), qtdEntrada, produtoEntrada);
+        try {
+          entrada.registrarEntrada();
+        } catch (erroInterno: any) {
+          console.log(`${erroInterno.message}`);
+        } finally {
+          estoque.registrarMovimentacao(entrada);
+        }
+        break;
 
-    case "3":
-      const codigoSaida = prompt("Código do produto: ");
-      const produtoSaida = estoque.buscarProduto(codigoSaida);
-      if (produtoSaida) {
+      case "3":
+        const codigoSaida = prompt("Código do produto: ");
+        const produtoSaida = estoque.buscarProduto(codigoSaida);
+        if (!produtoSaida) throw new Error("Produto não encontrado.");
         const qtdSaida = parseInt(prompt("Quantidade a remover: "));
-        new Saida(new Date(), qtdSaida, produtoSaida).registrarSaida();
-      } else {
-        console.log("Produto não encontrado.");
-      }
-      break;
+        const saida = new Saida(new Date(), qtdSaida, produtoSaida);
+        try {
+          saida.registrarSaida();
+        } catch (erroInterno: any) {
+          console.log(`${erroInterno.message}`);
+        } finally {
+          estoque.registrarMovimentacao(saida);
+        }
+        break;
 
-    case "4":
-      console.log("\n=== RELATÓRIO COMPLETO DO ESTOQUE ===");
-      estoque.listarProdutos(); // Lista produtos e alerta estoque baixo
-      estoque.listarHistorico(); // Lista histórico de entradas/saídas
-      break;
+      case "4":
+        console.log("\n📊 === RELATÓRIO COMPLETO DO ESTOQUE ===");
+        estoque.listarProdutos();
+        estoque.listarHistorico();
+        break;
 
-    case "0":
-      console.log("Saindo do sistema");
-      break;
+      case "0":
+        console.log("Saindo do sistema.");
+        break;
 
-    default:
-      console.log("Opção inválida!");
+      default:
+        console.log("Opção inválida!");
+    }
+  } catch (erro: any) {
+    console.log(`Erro: ${erro.message}`);
   }
 } while (opcao !== "0");
 
