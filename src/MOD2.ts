@@ -5,7 +5,7 @@ const prompt = promptSync(); // Inicializa o prompt
 
 //CLASSE MOVIMENTAÇÃO
 
-class Movimentacao { // Classe base para movimentações
+abstract class Movimentacao { // Classe base para movimentações
   constructor(
     protected data: Date,
     protected quantidade: number,
@@ -19,6 +19,8 @@ class Movimentacao { // Classe base para movimentações
   public getProduto(): Produto { // Retorna o produto movimentado
     return this.produto;
   }
+
+  abstract registrar(): string;
 }
 
 // CLASSE PRODUTO
@@ -31,8 +33,11 @@ class Produto { // Classe Produto com atributos e métodos
     private quantidade: number
   ) {
     // Validações básicas
-    if (!nome || !codigo) { // Verifica se nome e código não são vazios
-      throw new Error("Nome e código do produto não podem ser vazios.");
+    if (!nome || nome == "") { // Verifica se nome não está vazio
+      throw new Error("Nome do produto não permetido.");
+    } 
+    if (!codigo || codigo == "") { // Verifica se o código não está vazio
+      throw new Error("Código do produto não permitido")
     }
     if (preco <= 0 || isNaN(preco)) { // Verifica se o preço é maior que zero
       throw new Error("O preço do produto deve ser maior que zero.");
@@ -69,7 +74,7 @@ class Produto { // Classe Produto com atributos e métodos
 //CLASSE DE ENTRADA E SAIDA
 
 class Entrada extends Movimentacao { // Classe filha de Movimentacao
-  registrarEntrada(): string { // Metodo que registra a entrada do produto
+  registrar(): string { // Metodo que registra a entrada do produto
     const novaQuantidade = this.produto.getQuantidade() + this.quantidade;
     this.produto.setQuantidade(novaQuantidade);
     return `[ENTRADA] ${this.quantidade} unidade(s) de ${
@@ -81,7 +86,7 @@ class Entrada extends Movimentacao { // Classe filha de Movimentacao
 }
 
 class Saida extends Movimentacao { // Classe filha de Movimentacao
-  public registrarSaida(): string { // Metodo que registra a saída do produto
+  public registrar(): string { // Metodo que registra a saída do produto
     if (this.produto.getQuantidade() >= this.getQuantidade()) {
       const novaQuantidade =
         this.produto.getQuantidade() - this.getQuantidade();
@@ -182,7 +187,7 @@ do { // Laço principal do programa
 
         const quantidadeEntrada = parseInt(prompt("Quantidade de entrada: "));
         const entrada = new Entrada(new Date(), quantidadeEntrada, produtoEntrada);
-        const registro = entrada.registrarEntrada();
+        const registro = entrada.registrar();
         estoque.registrarHistorico(registro); // Adiciona ao histórico
         console.log(registro);
         break;
@@ -195,7 +200,7 @@ do { // Laço principal do programa
 
         const quantidadeSaida = parseInt(prompt("Quantidade de saída: "));
         const saida = new Saida(new Date(), quantidadeSaida, produtoSaida);
-        const registro = saida.registrarSaida();
+        const registro = saida.registrar();
         estoque.registrarHistorico(registro); // Adiciona ao histórico
         console.log(registro);
         break;  
